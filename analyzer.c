@@ -132,7 +132,7 @@ int main() {
 
     struct net_stats last_stats = {0}; // Lưu trạng thái trước đó để so sánh
 
-    long long alert_threshold = 1000000; // ví dụ giá trị mặc định
+    long long alert_threshold = 200; // ví dụ giá trị mặc định
 
     int logging_enabled = 1;
 
