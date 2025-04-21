@@ -39,6 +39,19 @@ notifier: $(SOURCES_NOTIFIER)
 controller: $(SOURCES_CONTROLLER)
 	$(CC) $(CFLAGS) $(SOURCES_CONTROLLER) -o controller $(LDFLAGS_CONTROLLER)
 
+# Tạo các file FIFO cần thiết cho IPC
+.PHONY: init_ipc
+init_ipc:
+	@echo "Tạo các file FIFO IPC..."
+	@if [ ! -p /tmp/analyzer_notifier_fifo ]; then mkfifo /tmp/analyzer_notifier_fifo; fi
+	@if [ ! -p /tmp/controller_fifo ]; then mkfifo /tmp/controller_fifo; fi
+	@echo "Đã tạo xong FIFO!"
+
+# Build và khởi tạo IPC chỉ với 1 lệnh
+.PHONY: setup
+setup: all init_ipc
+	@echo "Project đã sẵn sàng để chạy trên Ubuntu!"
+
 .PHONY: clean
 clean:
 	@echo "Cleaning up compiled files..."
