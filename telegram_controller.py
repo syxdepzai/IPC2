@@ -2,7 +2,7 @@ import os
 from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
 
 CTRL_FIFO = "/tmp/controller_fifo"
-TELEGRAM_TOKEN = "8102212529:AAF4IEZavrizhJp96fxQouPbUTtaRAWU0M"  # <-- Thay bằng token bot của bạn
+TELEGRAM_TOKEN = "8102212529:AAF4IEZavrizhuJp96fxQouPbUTtaRAWUOM"  # <-- Thay bằng token bot của bạn
 # Để bảo mật, chỉ cho phép user_id sau được điều khiển (thay bằng ID Telegram của bạn)
 ALLOWED_USER_ID = 1618512706
 
