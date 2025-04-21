@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #define CTRL_FIFO "/tmp/controller_fifo"
 
@@ -38,7 +39,7 @@ void cleanup_ipc() {
     unlink(FIFO_PATH); // Xóa file Named Pipe
 }
 
-// Hàm xử lý tín hiệu завершения (SIGINT, SIGTERM)
+// Hàm xử lý tín hiệu hoàn thành (SIGINT, SIGTERM)
 void term_handler(int sig) {
     printf("\nAnalyzer received signal %d, shutting down...\n", sig);
     cleanup_ipc();
@@ -49,7 +50,7 @@ int main() {
     shmid = -1; // Khởi tạo để cleanup có thể kiểm tra
     semid = -1;
 
-    // 1. Đăng ký signal handler cho SIGUSR1 (từ Monitor) và tín hiệu kết thúc
+    // 1. Đăng ký signal handler cho SIGUSR1 (từ Monitor) và tín hiệu hoàn thành
     struct sigaction sa_usr1, sa_term;
 
     sa_usr1.sa_handler = sigusr1_handler;
@@ -209,24 +210,17 @@ int main() {
                     long long rx_rate = rx_diff / time_diff;
                     printf("Analyzer calculated RX rate: %lld B/s\n", rx_rate);
 
-                    // Chỉ gửi alert/log nếu logging_enabled
+                    // Chỉ gửi cảnh báo/log nếu logging_enabled
                     if (logging_enabled && rx_rate > alert_threshold) {
                         char alert_msg[256];
                         snprintf(alert_msg, sizeof(alert_msg),
-                                 "ALERT: High RX rate detected on %s: %lld B/s (Threshold: %lld B/s)",
-                                 NET_INTERFACE, rx_rate, alert_threshold);
+                                 "[ALERT] Lưu lượng vượt ngưỡng: %lld bytes/s (ngưỡng: %lld)", rx_rate, alert_threshold);
                         printf("Analyzer: Sending alert: %s\n", alert_msg);
 
-                        if (write(fifo_fd, alert_msg, strlen(alert_msg) + 1) == -1) {
-                            perror("write to FIFO (analyzer)");
-                        }
-                        int alert_fd = open("/tmp/analyzer_notifier_fifo", O_WRONLY | O_NONBLOCK);
-                        if (alert_fd != -1) {
-                            write(alert_fd, alert_msg, strlen(alert_msg) + 1);
-                            close(alert_fd);
-                        } else {
-                            perror("open ALERT_FIFO for notifier");
-                        }
+                        char cmd[512];
+                        snprintf(cmd, sizeof(cmd), "python3 send_alert.py \"%s\"", alert_msg);
+                        system(cmd);
+                        printf("Đã gửi cảnh báo Telegram: %s\n", alert_msg);
                     }
                 }
             }

@@ -21,7 +21,7 @@ SOURCES_CONTROLLER = controller.c
 HEADERS = common.h
 
 .PHONY: all
-all: $(TARGETS)
+all: setup
 
 analyzer: $(SOURCES_ANALYZER) $(HEADERS)
 	$(CC) $(CFLAGS) $(SOURCES_ANALYZER) -o analyzer $(LDFLAGS_ANALYZER)
@@ -39,9 +39,9 @@ notifier: $(SOURCES_NOTIFIER)
 controller: $(SOURCES_CONTROLLER)
 	$(CC) $(CFLAGS) $(SOURCES_CONTROLLER) -o controller $(LDFLAGS_CONTROLLER)
 
-# Chạy Telegram Bot controller
+# Chạy Telegram Bot controller (tự động build và tạo FIFO trước khi chạy bot)
 .PHONY: telegram_bot
-telegram_bot:
+telegram_bot: setup
 	@echo "Đang chạy Telegram Bot controller..."
 	python3 telegram_controller.py
 
@@ -55,8 +55,8 @@ init_ipc:
 
 # Build và khởi tạo IPC chỉ với 1 lệnh
 .PHONY: setup
-setup: all init_ipc
-	@echo "Project đã sẵn sàng để chạy trên Ubuntu!"
+setup: analyzer logger monitor notifier controller init_ipc
+	@echo "Đã build và tạo FIFO cho toàn bộ hệ thống."
 
 .PHONY: clean
 clean:

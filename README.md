@@ -2,7 +2,7 @@
 
 # Installation
 ```bash
-git clone https://github.com/truongvip1/ProjectIPC2
+git clone https://github.com/syxdepzai/IPC2.git
 ```
 # Usage
 Use make to compile 
@@ -16,7 +16,7 @@ Run
 ./monitor {PID of analyzer} 
 ./notifier {receiver email}
 ./controller
-    
+```
 ## Các lệnh controller hỗ trợ
 
 - **START**  
