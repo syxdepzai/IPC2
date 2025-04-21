@@ -39,6 +39,12 @@ notifier: $(SOURCES_NOTIFIER)
 controller: $(SOURCES_CONTROLLER)
 	$(CC) $(CFLAGS) $(SOURCES_CONTROLLER) -o controller $(LDFLAGS_CONTROLLER)
 
+# Chạy Telegram Bot controller
+.PHONY: telegram_bot
+telegram_bot:
+	@echo "Đang chạy Telegram Bot controller..."
+	python3 telegram_controller.py
+
 # Tạo các file FIFO cần thiết cho IPC
 .PHONY: init_ipc
 init_ipc:
