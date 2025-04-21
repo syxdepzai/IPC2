@@ -1,5 +1,10 @@
 #include "common.h"
 #include <stdbool.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#define CTRL_FIFO "/tmp/controller_fifo"
 
 volatile sig_atomic_t got_signal = 0; // Cờ báo hiệu nhận được signal
 
@@ -112,6 +117,14 @@ int main() {
     }
      printf("Analyzer connected to Logger via FIFO.\n");
 
+    // Tạo FIFO điều khiển
+    if (mkfifo(CTRL_FIFO, 0666) == -1) {
+        if (errno != EEXIST) { // Bỏ qua nếu file đã tồn tại
+            perror("mkfifo (analyzer) for CTRL_FIFO");
+            cleanup_ipc();
+            exit(EXIT_FAILURE);
+        }
+    }
 
     printf("Analyzer (PID: %d) started. Waiting for signals...\n", getpid());
     printf("Run monitors like: ./monitor %d\n", getpid());
@@ -119,8 +132,39 @@ int main() {
     struct net_stats last_stats = {0}; // Lưu trạng thái trước đó để so sánh
     long long rx_byte_threshold = 200; // Ví dụ: ngưỡng 1MB/s (cần tính rate)
 
+    int logging_enabled = 1;
+    int alert_threshold = 1000000; // ví dụ giá trị mặc định
+
     // 6. Vòng lặp chính: chờ tín hiệu và xử lý
     while (1) {
+        // --- Đọc lệnh từ controller FIFO ---
+        int ctrl_fd = open(CTRL_FIFO, O_RDONLY | O_NONBLOCK);
+        if (ctrl_fd != -1) {
+            char ctrl_buf[128];
+            int ctrl_bytes = read(ctrl_fd, ctrl_buf, sizeof(ctrl_buf)-1);
+            if (ctrl_bytes > 0) {
+                ctrl_buf[ctrl_bytes] = '\0';
+                printf("Analyzer nhận lệnh: %s\n", ctrl_buf);
+                if (strncmp(ctrl_buf, "STOP", 4) == 0) {
+                    logging_enabled = 0;
+                    printf("Analyzer: STOP logging!\n");
+                } else if (strncmp(ctrl_buf, "START", 5) == 0) {
+                    logging_enabled = 1;
+                    printf("Analyzer: START logging!\n");
+                } else if (strncmp(ctrl_buf, "SETTHRESHOLD", 12) == 0) {
+                    int new_threshold = atoi(ctrl_buf + 13);
+                    alert_threshold = new_threshold;
+                    printf("Analyzer: Đã đổi alert threshold thành %d\n", alert_threshold);
+                } else if (strncmp(ctrl_buf, "QUIT", 4) == 0) {
+                    printf("Analyzer: Nhận lệnh QUIT, thoát chương trình!\n");
+                    close(ctrl_fd);
+                    break;
+                }
+            }
+            close(ctrl_fd);
+        }
+        // --- Kết thúc đọc lệnh ---
+
         // Chờ tín hiệu một cách hiệu quả
         pause(); // Tạm dừng tiến trình cho đến khi có tín hiệu
 
@@ -157,11 +201,11 @@ int main() {
                       printf("Analyzer calculated RX rate: %lld B/s\n", rx_rate);
 
                       // Kiểm tra ngưỡng
-                      if (rx_rate > rx_byte_threshold) {
+                      if (rx_rate > alert_threshold) {
                           char alert_msg[256];
                           snprintf(alert_msg, sizeof(alert_msg),
                                    "ALERT: High RX rate detected on %s: %lld B/s (Threshold: %lld B/s)",
-                                   NET_INTERFACE, rx_rate, rx_byte_threshold);
+                                   NET_INTERFACE, rx_rate, alert_threshold);
                           printf("Analyzer: Sending alert: %s\n", alert_msg);
 
                           // 11. Gửi cảnh báo đến Logger qua Pipe

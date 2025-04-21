@@ -8,12 +8,16 @@ CFLAGS = -Wall -Wextra -g
 LDFLAGS_MONITOR = -lpcap
 LDFLAGS_ANALYZER =
 LDFLAGS_LOGGER =
+LDFLAGS_NOTIFIER =
+LDFLAGS_CONTROLLER =
 
-TARGETS = analyzer monitor logger
+TARGETS = analyzer monitor logger notifier controller
 
 SOURCES_ANALYZER = analyzer.c
 SOURCES_MONITOR = monitor.c
 SOURCES_LOGGER = logger.c
+SOURCES_NOTIFIER = notifier.c
+SOURCES_CONTROLLER = controller.c
 HEADERS = common.h
 
 .PHONY: all
@@ -28,6 +32,12 @@ monitor: $(SOURCES_MONITOR) $(HEADERS)
 
 logger: $(SOURCES_LOGGER) $(HEADERS)
 	$(CC) $(CFLAGS) $(SOURCES_LOGGER) -o logger $(LDFLAGS_LOGGER)
+
+notifier: $(SOURCES_NOTIFIER)
+	$(CC) $(CFLAGS) $(SOURCES_NOTIFIER) -o notifier $(LDFLAGS_NOTIFIER)
+
+controller: $(SOURCES_CONTROLLER)
+	$(CC) $(CFLAGS) $(SOURCES_CONTROLLER) -o controller $(LDFLAGS_CONTROLLER)
 
 .PHONY: clean
 clean:
