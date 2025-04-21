@@ -1,5 +1,4 @@
 import os
-import asyncio
 from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
 
 CTRL_FIFO = "/tmp/controller_fifo"
@@ -35,11 +34,12 @@ async def handle_command(update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Chỉ hỗ trợ: START, STOP, SETTHRESHOLD <giá trị>, QUIT")
 
-async def main():
+if __name__ == '__main__':
+    import sys
+    import asyncio
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_command))
     print("Telegram bot is running...")
-    await app.run_polling()
-
-if __name__ == '__main__':
-    asyncio.run(main())
+    app.run_polling()
