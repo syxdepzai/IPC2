@@ -136,10 +136,16 @@ int main() {
 
     int logging_enabled = 1;
 
+    // Mở FIFO controller 1 lần duy nhất ở đầu vòng lặp
+    int ctrl_fd = open(CTRL_FIFO, O_RDONLY | O_NONBLOCK);
+    if (ctrl_fd == -1) {
+        perror("open CTRL_FIFO for reading (analyzer)");
+        // Có thể tiếp tục chạy, nhưng sẽ không nhận lệnh controller
+    }
+
     // 6. Vòng lặp chính: chờ tín hiệu và xử lý
     while (1) {
         // --- Đọc lệnh từ controller FIFO ---
-        int ctrl_fd = open(CTRL_FIFO, O_RDONLY | O_NONBLOCK);
         if (ctrl_fd != -1) {
             char ctrl_buf[128];
             int ctrl_bytes = read(ctrl_fd, ctrl_buf, sizeof(ctrl_buf)-1);
@@ -158,11 +164,9 @@ int main() {
                     printf("Analyzer: Đã đổi alert threshold thành %lld\n", alert_threshold);
                 } else if (strncmp(ctrl_buf, "QUIT", 4) == 0) {
                     printf("Analyzer: Nhận lệnh QUIT, thoát chương trình!\n");
-                    close(ctrl_fd);
                     break;
                 }
             }
-            close(ctrl_fd);
         }
         // --- Kết thúc đọc lệnh ---
 
@@ -232,6 +236,9 @@ int main() {
 
         }
     }
+
+    // Đóng FIFO controller khi thoát
+    if (ctrl_fd != -1) close(ctrl_fd);
 
     // Đoạn mã này thường không đạt được do vòng lặp vô hạn,
     // việc dọn dẹp được xử lý bởi term_handler
