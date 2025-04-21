@@ -47,6 +47,9 @@ void term_handler(int sig) {
     exit(EXIT_SUCCESS);
 }
 
+// Prototype cho hàm gửi Telegram
+void send_telegram_alert(const char *message);
+
 int main() {
     shmid = -1; // Khởi tạo để cleanup có thể kiểm tra
     semid = -1;
