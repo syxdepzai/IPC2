@@ -135,6 +135,7 @@ int main() {
     long long alert_threshold = 200; // ví dụ giá trị mặc định
 
     int logging_enabled = 1;
+    int should_exit = 0;
 
     // Mở FIFO controller 1 lần duy nhất ở đầu vòng lặp
     int ctrl_fd = open(CTRL_FIFO, O_RDONLY | O_NONBLOCK);
@@ -163,11 +164,8 @@ int main() {
                     alert_threshold = new_threshold;
                     printf("Analyzer: Đã đổi alert threshold thành %lld\n", alert_threshold);
                 } else if (strncmp(ctrl_buf, "QUIT", 4) == 0) {
-                    printf("Analyzer: Nhận lệnh QUIT, thoát chương trình!\n");
-                    // Đóng FIFO controller khi kết thúc
-                    if (ctrl_fd != -1) close(ctrl_fd);
-                    cleanup_ipc();
-                    exit(EXIT_SUCCESS);
+                    printf("Analyzer: Nhận lệnh QUIT, sẽ thoát sau khi xử lý tín hiệu!\n");
+                    should_exit = 1;
                 }
             }
         }
@@ -175,6 +173,12 @@ int main() {
 
         // Chờ tín hiệu một cách hiệu quả
         pause(); // Tạm dừng tiến trình cho đến khi có tín hiệu
+
+        if (should_exit) {
+            if (ctrl_fd != -1) close(ctrl_fd);
+            cleanup_ipc();
+            exit(EXIT_SUCCESS);
+        }
 
         // Sau khi nhận tín hiệu, xử lý dữ liệu:
         if (got_signal) {
