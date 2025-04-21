@@ -210,13 +210,19 @@ int main() {
                     long long rx_rate = rx_diff / time_diff;
                     printf("Analyzer calculated RX rate: %lld B/s\n", rx_rate);
 
-                    // Chỉ gửi cảnh báo/log nếu logging_enabled
+                    // Ghi log cho logger: luôn luôn ghi log, không phụ thuộc logging_enabled
+                    char logger_msg[256];
+                    snprintf(logger_msg, sizeof(logger_msg), "[LOG] RX: %lld bytes/s, Threshold: %lld", rx_rate, alert_threshold);
+                    int logger_fd = open("/tmp/net_monitor_fifo", O_WRONLY | O_NONBLOCK);
+                    if (logger_fd != -1) {
+                        write(logger_fd, logger_msg, strlen(logger_msg) + 1);
+                        close(logger_fd);
+                    }
+
+                    // Gửi cảnh báo Telegram: chỉ khi logging_enabled và vượt ngưỡng
                     if (logging_enabled && rx_rate > alert_threshold) {
                         char alert_msg[256];
-                        snprintf(alert_msg, sizeof(alert_msg),
-                                 "[ALERT] Lưu lượng vượt ngưỡng: %lld bytes/s (ngưỡng: %lld)", rx_rate, alert_threshold);
-                        printf("Analyzer: Sending alert: %s\n", alert_msg);
-
+                        snprintf(alert_msg, sizeof(alert_msg), "[ALERT] Lưu lượng vượt ngưỡng: %lld bytes/s (ngưỡng: %lld)", rx_rate, alert_threshold);
                         char cmd[512];
                         snprintf(cmd, sizeof(cmd), "python3 send_alert.py \"%s\"", alert_msg);
                         system(cmd);
