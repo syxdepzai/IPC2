@@ -164,7 +164,10 @@ int main() {
                     printf("Analyzer: Đã đổi alert threshold thành %lld\n", alert_threshold);
                 } else if (strncmp(ctrl_buf, "QUIT", 4) == 0) {
                     printf("Analyzer: Nhận lệnh QUIT, thoát chương trình!\n");
-                    break;
+                    // Đóng FIFO controller khi kết thúc
+                    if (ctrl_fd != -1) close(ctrl_fd);
+                    cleanup_ipc();
+                    exit(EXIT_SUCCESS);
                 }
             }
         }
@@ -173,67 +176,57 @@ int main() {
         // Chờ tín hiệu một cách hiệu quả
         pause(); // Tạm dừng tiến trình cho đến khi có tín hiệu
 
+        // Sau khi nhận tín hiệu, xử lý dữ liệu:
         if (got_signal) {
-            got_signal = 0; // Reset cờ hiệu
+            got_signal = 0;
 
             struct net_stats current_stats;
 
             // 7. Đồng bộ: Đợi semaphore
-             if (semaphore_op(semid, -1) == -1) continue; // Bỏ qua nếu không đợi được
-
+            if (semaphore_op(semid, -1) == -1) continue;
 
             // 8. Đọc dữ liệu từ Shared Memory
             memcpy(&current_stats, shared_data, sizeof(struct net_stats));
 
             // 9. Đồng bộ: Giải phóng semaphore
             if (semaphore_op(semid, 1) == -1) {
-                // Log lỗi nhưng vẫn tiếp tục phân tích dữ liệu đã đọc
-                 fprintf(stderr, "Analyzer: Failed to signal semaphore after reading.\n");
+                fprintf(stderr, "Analyzer: Failed to signal semaphore after reading.\n");
             }
 
-            // 10. Phân tích dữ liệu (ví dụ đơn giản)
+            // 10. Phân tích dữ liệu
             printf("Analyzer received data: RX bytes=%lld, TX bytes=%lld at %ld\n",
                    current_stats.rx_bytes, current_stats.tx_bytes, current_stats.timestamp);
 
-             // Tính toán sự thay đổi so với lần đọc trước
-             if (last_stats.timestamp != 0 && current_stats.timestamp > last_stats.timestamp) {
-                 time_t time_diff = current_stats.timestamp - last_stats.timestamp;
-                 long long rx_diff = current_stats.rx_bytes - last_stats.rx_bytes;
-                 //long long tx_diff = current_stats.tx_bytes - last_stats.tx_bytes;
+            // Tính toán sự thay đổi so với lần đọc trước
+            if (last_stats.timestamp != 0 && current_stats.timestamp > last_stats.timestamp) {
+                time_t time_diff = current_stats.timestamp - last_stats.timestamp;
+                long long rx_diff = current_stats.rx_bytes - last_stats.rx_bytes;
+                if (time_diff > 0) {
+                    long long rx_rate = rx_diff / time_diff;
+                    printf("Analyzer calculated RX rate: %lld B/s\n", rx_rate);
 
-                 if (time_diff > 0) {
-                      long long rx_rate = rx_diff / time_diff; // Bytes per second
-                      printf("Analyzer calculated RX rate: %lld B/s\n", rx_rate);
+                    // Chỉ gửi alert/log nếu logging_enabled
+                    if (logging_enabled && rx_rate > alert_threshold) {
+                        char alert_msg[256];
+                        snprintf(alert_msg, sizeof(alert_msg),
+                                 "ALERT: High RX rate detected on %s: %lld B/s (Threshold: %lld B/s)",
+                                 NET_INTERFACE, rx_rate, alert_threshold);
+                        printf("Analyzer: Sending alert: %s\n", alert_msg);
 
-                      // Kiểm tra ngưỡng
-                      if (rx_rate > alert_threshold) {
-                          char alert_msg[256];
-                          snprintf(alert_msg, sizeof(alert_msg),
-                                   "ALERT: High RX rate detected on %s: %lld B/s (Threshold: %lld B/s)",
-                                   NET_INTERFACE, rx_rate, alert_threshold);
-                          printf("Analyzer: Sending alert: %s\n", alert_msg);
-
-                          // 11. Gửi cảnh báo đến Logger qua Pipe
-                          if (logging_enabled) {
-                              if (write(fifo_fd, alert_msg, strlen(alert_msg) + 1) == -1) { // +1 để gửi cả null terminator
-                                  perror("write to FIFO (analyzer)");
-                              }
-                              // === Gửi cảnh báo đến Notifier qua FIFO riêng ===
-                              int alert_fd = open("/tmp/analyzer_notifier_fifo", O_WRONLY | O_NONBLOCK);
-                              if (alert_fd != -1) {
-                                  write(alert_fd, alert_msg, strlen(alert_msg) + 1);
-                                  close(alert_fd);
-                              } else {
-                                  perror("open ALERT_FIFO for notifier");
-                              }
-                          }
-                      }
-                 }
-             }
-
-             // Cập nhật trạng thái cuối cùng
+                        if (write(fifo_fd, alert_msg, strlen(alert_msg) + 1) == -1) {
+                            perror("write to FIFO (analyzer)");
+                        }
+                        int alert_fd = open("/tmp/analyzer_notifier_fifo", O_WRONLY | O_NONBLOCK);
+                        if (alert_fd != -1) {
+                            write(alert_fd, alert_msg, strlen(alert_msg) + 1);
+                            close(alert_fd);
+                        } else {
+                            perror("open ALERT_FIFO for notifier");
+                        }
+                    }
+                }
+            }
             memcpy(&last_stats, &current_stats, sizeof(struct net_stats));
-
         }
     }
 
