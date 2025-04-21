@@ -9,6 +9,7 @@
 volatile sig_atomic_t got_signal = 0; // Cờ báo hiệu nhận được signal
 
 void sigusr1_handler(int sig) {
+    (void)sig; // Đánh dấu biến sig là đã sử dụng để tránh warning
     got_signal = 1;
     // Chú ý: Không nên làm gì phức tạp (như printf) trong signal handler
     // Chỉ nên đặt cờ hiệu.
@@ -130,10 +131,10 @@ int main() {
     printf("Run monitors like: ./monitor %d\n", getpid());
 
     struct net_stats last_stats = {0}; // Lưu trạng thái trước đó để so sánh
-    long long rx_byte_threshold = 200; // Ví dụ: ngưỡng 1MB/s (cần tính rate)
+
+    long long alert_threshold = 1000000; // ví dụ giá trị mặc định
 
     int logging_enabled = 1;
-    int alert_threshold = 1000000; // ví dụ giá trị mặc định
 
     // 6. Vòng lặp chính: chờ tín hiệu và xử lý
     while (1) {
@@ -154,7 +155,7 @@ int main() {
                 } else if (strncmp(ctrl_buf, "SETTHRESHOLD", 12) == 0) {
                     int new_threshold = atoi(ctrl_buf + 13);
                     alert_threshold = new_threshold;
-                    printf("Analyzer: Đã đổi alert threshold thành %d\n", alert_threshold);
+                    printf("Analyzer: Đã đổi alert threshold thành %lld\n", alert_threshold);
                 } else if (strncmp(ctrl_buf, "QUIT", 4) == 0) {
                     printf("Analyzer: Nhận lệnh QUIT, thoát chương trình!\n");
                     close(ctrl_fd);
@@ -209,18 +210,18 @@ int main() {
                           printf("Analyzer: Sending alert: %s\n", alert_msg);
 
                           // 11. Gửi cảnh báo đến Logger qua Pipe
-                          if (write(fifo_fd, alert_msg, strlen(alert_msg) + 1) == -1) { // +1 để gửi cả null terminator
-                              perror("write to FIFO (analyzer)");
-                              // Logger có thể đã chết, cân nhắc xử lý (ví dụ: thử mở lại FIFO)
-                          }
-
-                          // === Gửi cảnh báo đến Notifier qua FIFO riêng ===
-                          int alert_fd = open("/tmp/analyzer_notifier_fifo", O_WRONLY | O_NONBLOCK);
-                          if (alert_fd != -1) {
-                              write(alert_fd, alert_msg, strlen(alert_msg) + 1);
-                              close(alert_fd);
-                          } else {
-                              perror("open ALERT_FIFO for notifier");
+                          if (logging_enabled) {
+                              if (write(fifo_fd, alert_msg, strlen(alert_msg) + 1) == -1) { // +1 để gửi cả null terminator
+                                  perror("write to FIFO (analyzer)");
+                              }
+                              // === Gửi cảnh báo đến Notifier qua FIFO riêng ===
+                              int alert_fd = open("/tmp/analyzer_notifier_fifo", O_WRONLY | O_NONBLOCK);
+                              if (alert_fd != -1) {
+                                  write(alert_fd, alert_msg, strlen(alert_msg) + 1);
+                                  close(alert_fd);
+                              } else {
+                                  perror("open ALERT_FIFO for notifier");
+                              }
                           }
                       }
                  }
