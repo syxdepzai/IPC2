@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <curl/curl.h>
 
 #define CTRL_FIFO "/tmp/controller_fifo"
 
@@ -219,13 +220,11 @@ int main() {
                         close(logger_fd);
                     }
 
-                    // Gửi cảnh báo Telegram: chỉ khi logging_enabled và vượt ngưỡng
+                    // Gửi cảnh báo qua Telegram
                     if (logging_enabled && rx_rate > alert_threshold) {
                         char alert_msg[256];
                         snprintf(alert_msg, sizeof(alert_msg), "[ALERT] Lưu lượng vượt ngưỡng: %lld bytes/s (ngưỡng: %lld)", rx_rate, alert_threshold);
-                        char cmd[512];
-                        snprintf(cmd, sizeof(cmd), "python3 send_alert.py \"%s\"", alert_msg);
-                        system(cmd);
+                        send_telegram_alert(alert_msg);
                         printf("Đã gửi cảnh báo Telegram: %s\n", alert_msg);
                     }
                 }
@@ -241,4 +240,25 @@ int main() {
     // việc dọn dẹp được xử lý bởi term_handler
     cleanup_ipc();
     return 0;
+}
+
+// Hàm gửi cảnh báo Telegram trực tiếp từ C
+void send_telegram_alert(const char *message) {
+    const char *token = "8102212529:AAF4IEZavrizhuJp96fxQouPbUTtaRAWUOM"; // Thay bằng token bot của bạn
+    const char *chat_id = "1618512706"; // Thay bằng chat_id của bạn
+    char url[512];
+    snprintf(url, sizeof(url), "https://api.telegram.org/bot%s/sendMessage", token);
+    char postfields[1024];
+    snprintf(postfields, sizeof(postfields), "chat_id=%s&text=%s", chat_id, message);
+
+    CURL *curl = curl_easy_init();
+    if (curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postfields);
+        CURLcode res = curl_easy_perform(curl);
+        if (res != CURLE_OK) {
+            fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+        }
+        curl_easy_cleanup(curl);
+    }
 }

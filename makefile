@@ -6,7 +6,7 @@ CFLAGS = -Wall -Wextra -g
 
 # Linker flags: Thêm -lpcap cho Monitor
 LDFLAGS_MONITOR = -lpcap
-LDFLAGS_ANALYZER =
+LDFLAGS_ANALYZER = -lcurl
 LDFLAGS_LOGGER =
 LDFLAGS_NOTIFIER =
 LDFLAGS_CONTROLLER =
